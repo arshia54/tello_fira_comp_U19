@@ -1,129 +1,148 @@
-# U19 Autonomous Air Competition - Gate Navigation System
+AprilTag Detection System
 
-## Table of Contents
+A powerful AprilTag detection system with automatic detector selection, adaptive image processing, and intelligent tracking.
 
-1. Introduction
-2. System Overview
-3. Hardware Requirements
-4. Software Architecture
-5. Core Algorithms
-6. State Machine
-7. Installation Guide
-8. Configuration
-9. Usage Instructions
-10. Performance Metrics
-11. Troubleshooting Guide
-12. Code Structure
-13. Future Improvements
-14. Appendices
+Features
 
----
+- Three detection modes: FAST, PRECISE, LOW_LIGHT
+- Automatic detector selection based on lighting conditions
+- Five-factor confidence calculation for each detection
+- Kalman filter for smooth tracking and position prediction
+- Real-time performance metrics display
+- Webcam support (no Tello drone required)
 
-## 1. Introduction
+Installation and Run
 
-This document provides comprehensive documentation for the autonomous gate navigation system developed for the U19 Autonomous Air Competition. The system enables a DJI Tello drone to autonomously detect, approach, and navigate through multiple sequential gates using a combination of AprilTag localization and computer vision techniques.
+Step 1 - Install dependencies:
+pip install opencv-python pupil-apriltags numpy scipy
 
-### 1.1 Competition Requirements Addressed
+Step 2 - Run the program:
+python myat.py
 
-- Fully autonomous operation (no human intervention)
-- Takeoff and landing without remote control
-- Gate detection and identification
-- Multiple gate navigation (sequential)
-- Obstacle avoidance
-- Real-time status reporting
-- Battery management
+Controls
 
-### 1.2 Key Innovations
+Key Q - Exit program
+Key R - Reset tracking system
+Key S - Show statistics in console
 
-- Dual-mode detection system (AprilTag + computer vision)
-- Tanh-based smooth velocity control
-- GOM fallback mechanism for temporary tag loss
-- Low-pass filtered target stabilization
+Detection Modes
 
----
+FAST mode - Speed priority, lower resolution for faster processing
+PRECISE mode - Accuracy priority, full resolution for higher precision
+LOW_LIGHT mode - Poor lighting, enhanced contrast and noise reduction
 
-## 2. System Overview
+How Detection Works
 
-### 2.1 High-Level Architecture
+1. Camera captures image
+2. System assesses lighting conditions (low light, normal, high contrast)
+3. Image preprocessing (CLAHE, denoise, sharpen) based on lighting
+4. Best detector selected automatically
+5. AprilTag detection runs
+6. Confidence calculated from 5 factors
+7. Kalman filter smooths position and predicts movement
+8. Validated results returned
 
+Confidence Factors
 
+Tag structure (20%) - Valid corners present
+Area (20%) - Appropriate tag size in frame
+Edge quality (25%) - Sharpness of tag edges
+Pose stability (15%) - Reasonable distance and angle
+Historical consistency (20%) - Matches previous detections
 
+Display Information
 
+Colored circle on tag - Green (high confidence), Yellow (medium), Red (low)
+ID - Tag identification number
+Pos - 3D position in mm (X, Y, Z)
+Ang - Angle in degrees
+Conf - Confidence value from 0 to 1
+Det - Active detector name
 
-### 2.2 Data Flow
+Performance Metrics (top-left corner)
 
-1. Drone captures 960x720 RGB frames at 30fps
-2. Frames are processed for AprilTag detection (grayscale conversion)
-3. Parallel processing for gate detection (LAB + HSV color spaces)
-4. State machine determines appropriate action
-5. Velocity commands sent to drone via UDP
+Frames - Total processed frames
+Success - Detection success rate as percentage
+Avg Time - Average processing time in milliseconds
+Detector - Currently active detector
+Brightness - Average image brightness
 
----
+Output Format
 
-## 3. Hardware Requirements
+get_tags() returns a list where each element contains:
+[
+    tag_id,      # Tag identification number
+    x, y, z,     # 3D position in millimeters
+    angle,       # Angle in degrees
+    center_x,    # X center in pixels
+    center_y,    # Y center in pixels
+    confidence,  # Confidence value from 0 to 1
+    detector     # Detector name used (FAST, PRECISE, or LOW_LIGHT)
+]
 
-### 3.1 Minimum Specifications
+Troubleshooting
 
-| Component | Specification | Notes |
-|-----------|---------------|-------|
-| Drone | DJI Tello | Any firmware version |
-| Processor | Intel Core i3 or equivalent | For image processing |
-| RAM | 4GB minimum | 8GB recommended |
-| OS | Windows 10/11, Ubuntu 18.04+, macOS | Any with Python support |
-| Camera | Tello integrated (960x720) | Fixed focus |
-| Battery | Tello OEM battery | 30% minimum for operation |
+Tag not detected - Increase lighting, move closer to tag, check print quality
+Slow detection - System should auto-select FAST mode, or lower camera resolution
+Low confidence - Improve lighting, clean the tag, let system switch to PRECISE mode
+Jittery tracking - Press R key to reset tracking system
 
-### 3.2 Physical Setup Requirements
+Configuration
 
-- Clear flight area (minimum 5m x 5m x 3m)
-- AprilTags printed on matte paper (tag36h11 family)
-- Gates with detectable colors (frame + yellow elements)
-- Uniform lighting (avoid direct sunlight)
-- No obstacles between gates
+Edit these values at the top of myat.py:
 
-### 3.3 AprilTag Specifications
+frame_size = [960, 720]      - Frame width and height in pixels
+april_cm = 1000.0            - Scale factor (mm to cm conversion)
+april_focal = [680, 680]     - Camera focal length in pixels
+TAG_SIZE = 0.016             - Physical tag size in meters
 
-| Parameter | Value |
-|-----------|-------|
-| Family | tag36h11 |
-| Size | 5cm x 5cm (minimum) |
-| Print quality | 600dpi recommended |
-| Mounting | Center of gate, 1.5m height |
-| Material | Matte paper (no glare) |
+Detection thresholds you can adjust:
 
----
+min_confidence = 0.3         - Minimum confidence to accept detection
+max_position_mm = 1000       - Maximum reasonable position in mm
 
-## 4. Software Architecture
+Lighting thresholds:
 
-### 4.1 Dependency Tree
+brightness_low = 60          - Below this = low light condition
+brightness_high = 200        - Above this = high contrast condition
 
+Sample Output
 
+When you press S key:
+{
+  "total_frames": 150,
+  "success_rate": 0.92,
+  "avg_processing_time": 28.5,
+  "current_detector": "FAST",
+  "detector_performance": {
+    "FAST": [120, 0.88],
+    "PRECISE": [25, 0.95],
+    "LOW_LIGHT": [5, 0.71]
+  }
+}
 
+Requirements File (requirements.txt)
 
-### 4.2 Module Description
+opencv-python>=4.8.0
+pupil-apriltags>=1.1.0
+numpy>=1.24.0
+scipy>=1.11.0
 
-| Module | Function |
-|--------|----------|
-| `get_tags()` | AprilTag detection and pose estimation |
-| `detect_gate_and_opening()` | Color-based gate detection |
-| `low_pass_update()` | Target coordinate filtering |
-| `get_tuning_speeds()` | Tanh-based velocity calculation |
+Notes
 
----
+- System automatically selects best detector based on lighting and performance
+- For best results, keep tag centered in frame
+- Uniform lighting gives best detection results
+- In low light, system automatically switches to LOW_LIGHT detector
 
-## 5. Core Algorithms
+License
 
-### 5.1 AprilTag Detection
+MIT License
 
-The system uses the pupil_apriltags library for robust tag detection.
+Author
 
-```python
-at_detector = Detector(
-    families="tag36h11",
-    nthreads=1,
-    quad_decimate=1.0,
-    quad_sigma=0.0,
-    refine_edges=1,
-    decode_sharpening=0.25,
-    debug=0
-)
+DayLight_
+
+Version
+
+1.0.0
